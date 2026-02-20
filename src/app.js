@@ -10,10 +10,22 @@ app.get("/health", (_req, res) => {
   res.status(200).json({ status: "ok" });
 });
 
+function shouldAwaitParams(redirectResult) {
+  return redirectResult.awaitParams && !redirectResult.hasPassthroughParams;
+}
+
 app.head("/redirect", (req, res, next) => {
   try {
-    const { status, headRedirect, redirectUrl } = buildRedirectResult(req);
+    const redirectResult = buildRedirectResult(req);
+    const { status, headRedirect, redirectUrl } = redirectResult;
     res.set("Cache-Control", "no-store");
+
+    if (shouldAwaitParams(redirectResult)) {
+      res.set("X-Redirect-URL", redirectUrl);
+      res.set("X-Redirect-Status", "awaiting-params");
+      res.status(200).end();
+      return;
+    }
 
     if (headRedirect) {
       res.redirect(status, redirectUrl);
@@ -29,8 +41,19 @@ app.head("/redirect", (req, res, next) => {
 
 app.get("/redirect", (req, res, next) => {
   try {
-    const { status, redirectUrl } = buildRedirectResult(req);
+    const redirectResult = buildRedirectResult(req);
+    const { status, redirectUrl } = redirectResult;
     res.set("Cache-Control", "no-store");
+
+    if (shouldAwaitParams(redirectResult)) {
+      res.status(200).json({
+        code: "AWAITING_PARAMS",
+        message: "No passthrough query params yet. Waiting for app to append params before redirect.",
+        redirect_preview: redirectUrl,
+      });
+      return;
+    }
+
     res.redirect(status, redirectUrl);
   } catch (error) {
     next(error);

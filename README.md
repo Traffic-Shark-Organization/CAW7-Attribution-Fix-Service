@@ -28,6 +28,10 @@ npm start
 - статус редиректа (`302` по умолчанию или значение `status`);
 - заголовок `Location` с итоговым URL.
 
+Если передать `await_params=true`, сервис будет ждать прикладные query-параметры:
+- пока прикладных параметров нет, `HEAD` вернет `200` и `X-Redirect-Status: awaiting-params`;
+- это позволяет приложению считать URL сервиса «последним» в цепочке.
+
 ### `GET /redirect`
 
 Выполняет редирект на вычисленную ссылку.
@@ -39,6 +43,9 @@ npm start
 - `head_redirect` (опциональный): флаг для `HEAD`-режима (`true/false`, `1/0`, `yes/no`, `on/off`).
   - `false` (по умолчанию): `HEAD` не редиректит, отвечает `200` + `X-Redirect-URL`.
   - `true`: `HEAD` возвращает редирект (`Location` + статус).
+- `await_params` (опциональный): флаг workaround-режима (`true/false`, `1/0`, `yes/no`, `on/off`).
+  - `true` и прикладных query-параметров еще нет: сервис **не редиректит**.
+  - как только прикладные query-параметры появились: сервис редиректит в `target` и подставляет эти параметры.
 - любые другие query-параметры: будут добавлены в `target`.
 
 ## Пример
@@ -67,6 +74,20 @@ HEAD /redirect?target=https%3A%2F%2Fexample.com%2Flanding&campaign=summer
 ```text
 HEAD /redirect?target=https%3A%2F%2Fexample.com%2Flanding&head_redirect=true&status=307
 307 Location: https://example.com/landing
+```
+
+Workaround, когда приложению нужно считать URL сервиса «последним»:
+
+```text
+HEAD /redirect?target=https%3A%2F%2Fjacktrack.pro%2Fpaw-plan-ios-campaign&await_params=true
+200 X-Redirect-Status: awaiting-params
+```
+
+После того как приложение добавило параметры к этому же URL:
+
+```text
+GET /redirect?target=https%3A%2F%2Fjacktrack.pro%2Fpaw-plan-ios-campaign&await_params=true&campaign=summer&click_id=abc123
+302 Location: https://jacktrack.pro/paw-plan-ios-campaign?campaign=summer&click_id=abc123
 ```
 
 ## Безопасность

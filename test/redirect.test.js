@@ -51,6 +51,18 @@ test("HEAD can return redirect when head_redirect flag is enabled", async () => 
   assert.equal(response.headers.get("x-redirect-url"), null);
 });
 
+test("HEAD waits for params in await_params mode", async () => {
+  const response = await fetch(
+    `${baseUrl}/redirect?target=${encodeURIComponent("https://example.com/path")}&await_params=true`,
+    { method: "HEAD", redirect: "manual" },
+  );
+
+  assert.equal(response.status, 200);
+  assert.equal(response.headers.get("location"), null);
+  assert.equal(response.headers.get("x-redirect-status"), "awaiting-params");
+  assert.equal(response.headers.get("x-redirect-url"), "https://example.com/path");
+});
+
 test("GET redirects and forwards source query parameters to target", async () => {
   const response = await fetch(
     `${baseUrl}/redirect?target=${encodeURIComponent("https://example.com/path")}&campaign=summer&click_id=abc123`,
@@ -86,12 +98,35 @@ test("status query param controls redirect status code", async () => {
 
 test("control query params are not forwarded to target URL", async () => {
   const response = await fetch(
-    `${baseUrl}/redirect?target=${encodeURIComponent("https://example.com/path")}&status=302&head_redirect=true&campaign=summer`,
+    `${baseUrl}/redirect?target=${encodeURIComponent("https://example.com/path")}&status=302&head_redirect=true&await_params=true&campaign=summer`,
     { redirect: "manual" },
   );
 
   assert.equal(response.status, 302);
   assert.equal(response.headers.get("location"), "https://example.com/path?campaign=summer");
+});
+
+test("GET waits for params in await_params mode if passthrough params are absent", async () => {
+  const response = await fetch(
+    `${baseUrl}/redirect?target=${encodeURIComponent("https://example.com/path")}&await_params=true`,
+    { redirect: "manual" },
+  );
+  const body = await response.json();
+
+  assert.equal(response.status, 200);
+  assert.equal(response.headers.get("location"), null);
+  assert.equal(body.code, "AWAITING_PARAMS");
+  assert.equal(body.redirect_preview, "https://example.com/path");
+});
+
+test("GET redirects once params are present in await_params mode", async () => {
+  const response = await fetch(
+    `${baseUrl}/redirect?target=${encodeURIComponent("https://example.com/path")}&await_params=true&campaign=summer&click_id=abc123`,
+    { redirect: "manual" },
+  );
+
+  assert.equal(response.status, 302);
+  assert.equal(response.headers.get("location"), "https://example.com/path?campaign=summer&click_id=abc123");
 });
 
 test("returns 400 for missing target", async () => {
@@ -116,6 +151,17 @@ test("returns 400 for invalid target protocol", async () => {
 test("returns 400 for invalid head_redirect flag", async () => {
   const response = await fetch(
     `${baseUrl}/redirect?target=${encodeURIComponent("https://example.com/path")}&head_redirect=maybe`,
+    { method: "HEAD", redirect: "manual" },
+  );
+  const body = await response.json();
+
+  assert.equal(response.status, 400);
+  assert.equal(body.code, "BAD_REQUEST");
+});
+
+test("returns 400 for invalid await_params flag", async () => {
+  const response = await fetch(
+    `${baseUrl}/redirect?target=${encodeURIComponent("https://example.com/path")}&await_params=maybe`,
     { method: "HEAD", redirect: "manual" },
   );
   const body = await response.json();
