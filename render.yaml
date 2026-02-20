@@ -1,0 +1,8 @@
+services:
+  - type: web
+    name: caw7-attribution-fix-service
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /health
